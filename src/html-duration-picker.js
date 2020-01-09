@@ -5,36 +5,54 @@
  * @description Turn an html input box to a duration picker, without jQuery
  * @version [AIV]{version}[/AIV]
  * @author Chif <nadchif@gmail.com>
- * @license GPL v3
+ * @license Apache-2.0
  *
  */
 
 export default (function() {
+  // Gets the cursor selection
+  const getCursorSelection = ({target: {selectionStart, value}}) => {
+    const hourMarker = value.indexOf(':');
+    const minuteMarker = value.lastIndexOf(':');
+    let cursorSelection;
+
+    // The cursor selection is: hours
+    if (selectionStart < hourMarker) {
+      cursorSelection = 'hours';
+    }
+    // The cursor selection is: minutes
+    if (selectionStart > hourMarker && selectionStart - 1 < minuteMarker) {
+      cursorSelection = 'minutes';
+    }
+    // The cursor selection is: seconds
+    if (selectionStart > minuteMarker) {
+      cursorSelection = 'seconds';
+    }
+    return {cursorSelection, hourMarker, minuteMarker};
+  };
   // Gets the time interval (hh or mm or ss) and selects the entire block
   const selectFocus = (event) => {
     // Gets the cursor position and select the nearest time interval
-    const cursorPosition = event.target.selectionStart;
-    const hourMarker = event.target.value.indexOf(':');
-    const minuteMarker = event.target.value.lastIndexOf(':');
+    const {cursorSelection, hourMarker, minuteMarker} = getCursorSelection(event);
 
     // Something is wrong with the duration format.
-    if (hourMarker < 0 || minuteMarker < 0) {
+    if (!cursorSelection) {
       return;
     }
     // The cursor selection is: hours
-    if (cursorPosition < hourMarker) {
+    if (cursorSelection === 'hours') {
       event.target.setAttribute('data-adjustment-mode', 60 * 60);
       event.target.setSelectionRange(0, hourMarker);
       return;
     }
     // The cursor selection is: minutes
-    if (cursorPosition > hourMarker && cursorPosition < minuteMarker) {
+    if (cursorSelection === 'minutes') {
       event.target.setAttribute('data-adjustment-mode', 60);
       event.target.setSelectionRange(hourMarker + 1, minuteMarker);
       return;
     }
     // The cursor selection is: seconds
-    if (cursorPosition > minuteMarker) {
+    if (cursorSelection === 'seconds') {
       event.target.setAttribute('data-adjustment-mode', 1);
       event.target.setSelectionRange(minuteMarker + 1, minuteMarker + 3);
       return;
@@ -56,8 +74,7 @@ export default (function() {
     inputBox.value = `${formattedHours}:${formattedMinutes}:${formattedSeconds}`;
   };
   const highlightIncrementArea = (inputBox, adjustmentFactor) => {
-    const hourMarker = inputBox.value.indexOf(':');
-    const minuteMarker = inputBox.value.lastIndexOf(':');
+    const {hourMarker, minuteMarker} = getCursorSelection(event);
     inputBox.focus();
     inputBox.select();
     if (adjustmentFactor >= 60 * 60) {
@@ -122,14 +139,16 @@ export default (function() {
 
   // Check data-duration for proper format
   const checkDuration = (selector) => {
-    const regex = RegExp('^[0-9][0-9]:[0-9][0-9]:[0-9][0-9]$');
+    const regex = RegExp('^[0-9][0-9]:[0-5][0-9]:[0-5][0-9]$');
     const testResult = regex.test(selector.dataset.duration);
     return testResult;
   };
 
   // validate any input in the box;
   const validateInput = (event) => {
+    const {cursorSelection} = getCursorSelection(event);
     const sectioned = event.target.value.split(':');
+
     if (event.target.dataset.duration && checkDuration(event.target) && sectioned.length !== 3) {
       event.target.value = event.target.dataset.duration; // fallback to data-duration value
       return;
@@ -146,6 +165,9 @@ export default (function() {
     }
     if (sectioned[1] > 59 || sectioned[1].length > 2) {
       sectioned[1] = '59';
+    }
+    if (sectioned[1].length === 2 && sectioned[1].slice(-1) === event.key && cursorSelection === 'minutes') {
+      shiftFocus(event.target, 'right');
     }
     if (isNaN(sectioned[2]) || sectioned[2] < 0) {
       sectioned[2] = '00';
@@ -187,7 +209,7 @@ export default (function() {
 
   const _init = () => {
     // Select all of the input fields with the attribute "html-duration-picker"
-    const getInputFields = document.querySelectorAll('input[html-duration-picker]');
+    const getInputFields = document.querySelectorAll('input.html-duration-picker');
     getInputFields.forEach((picker) => {
     // Set the default text and apply some basic styling to the duration picker
       if (picker.getAttribute('data-upgraded') == 'true') {
